@@ -316,4 +316,6 @@ free_sb:
     free(sb);
 fclose:
     close(fd);
+
+    return ret;
 }
