@@ -3,7 +3,7 @@
 #ifndef SIMPLEFS_H
 #define SIMPLEFS_H
 
-#define SIMPLEFS_MAGIC_NUMBER 0xDEADCELL
+#define SIMPLEFS_MAGIC 0xdeadcell
 
 #define SIMPLEFS_SB_BLOCK_NR 0
 
@@ -27,24 +27,24 @@
  */
 
 struct simplefs_inode {
-    uint32_t i_mode;
-    uint32_t i_uid;
-    uint32_t i_gid;
-    uint32_t i_size;
-    uint32_t i_ctime;
-    uint32_t i_atime;
-    uint32_t i_mtime;
-    uint32_t i_blocks;
-    uint32_t i_nlink;
-    uint32_t ei_block;
-    char i_data[32];
+    uint32_t i_mode;   /* File mode */
+    uint32_t i_uid;    /* Owner id */
+    uint32_t i_gid;    /* Group id */
+    uint32_t i_size;   /* Size in bytes */
+    uint32_t i_ctime;  /* Inode change time */
+    uint32_t i_atime;  /* Access time */
+    uint32_t i_mtime;  /* Modification time */
+    uint32_t i_blocks; /* Block count */
+    uint32_t i_nlink;  /* Hard links count */
+    uint32_t ei_block; /* Block with list of extents for this file */
+    char i_data[32];   /* store symlink content */
 };
 
 #define SIMPLEFS_INODES_PER_BLOCK \
-    (SIMPLEFS_BLOCK_SIZE / sizeof(simplefs_inode))
+    (SIMPLEFS_BLOCK_SIZE / sizeof(struct simplefs_inode))
 
 struct simplefs_sb_info {
-    uint32_t magic_number; /* Magic Number */
+    uint32_t magic; /* Magic Number */
     
     uint32_t nr_blocks; /* Total number of blocks (include sb & inodes) */
     uint32_t nr_inodes; /* Total number of inodes */
@@ -53,10 +53,11 @@ struct simplefs_sb_info {
     uint32_t nr_ifree_blocks;  /* Number of inode free bitmap blocks */
     uint32_t nr_bfree_blocks;  /* Number of block free bitmap blocks */
 
-#ifdef __KERNEL__
+    uint32_t nr_free_inodes; /* Number of free inodes */
+    uint32_t nr_free_blocks; /* Number of free blocks */
+
     unsigned long *ifree_bitmap; /* In-memory free inodes bitmap */
     unsigned long *bfree_bitmap; /* In-memory free blocks bitmap */
-#endif
 };
 
 struct simplefs_extent {
