@@ -1,16 +1,26 @@
-#include <stdint.h>
-
 #ifndef SIMPLEFS_H
 #define SIMPLEFS_H
 
-#define SIMPLEFS_MAGIC 0xdeadcell
+#define SIMPLEFS_MAGIC 0xDEADCELL
 
 #define SIMPLEFS_SB_BLOCK_NR 0
 
 #define SIMPLEFS_BLOCK_SIZE (1 << 12) /* 4KiB */
+#define SIMPLEFS_MAX_EXTENTS \
+    ((SIMPLEFS_BLOCK_SIZE - sizeof(uint32_t)) / sizeof(struct simplefs_extent))
+#define SIMPLEFS_MAX_BLOCK_PER_EXTENT 8
+#define SIMPLEFS_MAX_SIZE_PER_EXTNET \
+    (SIMPLEFS_MAX_BLOCK_PER_EXTENT * SIMPLEFS_BLOCK_SIZE)
+#define SIMPLEFS_MAX_FILESIZE \
+    ((uint64_t) SIMPLEFS_MAX_BLOCK_PER_EXTENT * SIMPLEFS_BLOCK_SIZE * \
+     SIMPLEFS_MAX_EXTENTS)
 
 #define SIMPLEFS_FILENAME_LEN 255
 
+#define SIMPLEFS_FILES_PER_BLOCK \
+    (SIMPLEFS_BLOCK_SIZE / sizeof(struct simplefs_file))
+#define SIMPLEFS_FILES_PER_EXTENT \
+    (SIMPLEFS_FILES_PER_BLOCK * SIMPLEFS_MAX_BLOCK_PER_EXTENT)
 /* simplefs partition layout
  * +---------------+
  * |  superblock   |  1 block
@@ -43,6 +53,65 @@ struct simplefs_inode {
 #define SIMPLEFS_INODES_PER_BLOCK \
     (SIMPLEFS_BLOCK_SIZE / sizeof(struct simplefs_inode))
 
+#ifdef __KERNEL__
+#include <linux/version.h>
+/* compatibility macros */
+#define SIMPLEFS_AT_LEAST(major, minor, rev) \
+    LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev)
+#define SIMPLEFS_LESS_EQUAL(major, minor, rev) \
+    LINUX_VERSION_CODE >= KERNEL_VERSION(major, minor, rev)
+
+/* A 'container' structure that keeps the VFS inode and additional on-disk
+ * data.
+ */
+struct simplefs_inode_info {
+    uint32_t ei_block; /* Block with list of extents for this file */
+    char i_data[32];
+    struct inode vfs_inode;
+};
+
+struct simplefs_extent {
+    uint32_t ee_block; /* first logical block extent covers */
+    uint32_t ee_len;   /* number of blocks covered by extent */
+    uint32_t ee_start; /* first physical block extent covers */
+};
+
+struct simplefs_file_ei_block {
+    uint32_t nr_files;
+    struct simplefs_extent extents[SIMPLEFS_MAX_EXTENTS];
+};
+
+struct simplefs_file {
+    uint32_t inode;
+    char filename[SIMPLEFS_FILENAME_LEN];
+};
+
+/* superblock functions */
+int simplefs_fill_super(struct super_block *sb, void *data, int silent);
+void simplefs_kill_sb(struct super_block *sb);
+
+/* inode functions */
+int simplefs_init_inode_cache(void);
+void simplefs_destroy_inode_cache(void);
+struct inode *simplefs_iget(struct super_block *sb, unsigned long ino);
+
+/* dentry function */
+struct dentry *simplefs_mount(struct file_system_type *fs_type,
+                              int flags,
+                              const char *dev_name,
+                              void *data);
+/* file functions */
+extern const struct file_operations simplefs_file_ops;
+extern const struct file_operations simplefs_dir_ops;
+extern const struct address_space_operations simplefs_aops;
+
+/* Get superblock and inode */
+#define SIMPLEFS_SB(sb) (sb->s_fs_info)
+/* Extract a simplefs_inode_info object from a VFS inode */
+#define SIMPLEFS_INODE(inode) \
+    (container_of(inode, struct simplefs_inode_info, vfs_inode))
+
+#endif /* __KERNEL__ */
 struct simplefs_sb_info {
     uint32_t magic; /* Magic Number */
     
@@ -58,17 +127,6 @@ struct simplefs_sb_info {
 
     unsigned long *ifree_bitmap; /* In-memory free inodes bitmap */
     unsigned long *bfree_bitmap; /* In-memory free blocks bitmap */
-};
-
-struct simplefs_extent {
-    uint32_t ee_block; /* first logical block extent covers */
-    uint32_t ee_len;   /* number of blocks covered by extent */
-    uint32_t ee_start; /* first physical block extent covers */
-};
-
-struct simplefe_file {
-    uint32_t inode;
-    char filename[SIMPLEFS_FILENAME_LEN];
 };
 
 #endif /* SIMPLEFS_H */
